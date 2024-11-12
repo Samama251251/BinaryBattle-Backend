@@ -141,12 +141,16 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [("tough-sheep-21211.upstash.io", 6379)],
-            "password": "AVLbAAIncDFlYjFlZGY3ODIxOTg0MjI3ODhhZTdjYzRhMzIzNTI4N3AxMjEyMTE",  # Replace with your actual password
-            "ssl": True,
+            'hosts': [
+                {
+                    'address': os.getenv("REDIS_HOST"),
+                    'password': os.getenv("REDIS_PASSWORD"),
+                }
+            ],
         },
     },
 }
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
