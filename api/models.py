@@ -15,10 +15,6 @@ class User(models.Model):
         ordering = ['created_at']
 
 class Friendship(models.Model):
-    """
-    Model to handle friendship relationships between users
-    """
-    
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('accepted', 'Accepted'),
@@ -60,3 +56,33 @@ class Friendship(models.Model):
         if self.status == 'pending':
             self.status = 'rejected'
             self.save()
+
+class Group(models.Model):
+    name = models.CharField(max_length=255)
+    members = models.ManyToManyField(User, related_name='groups')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+class Message(models.Model):
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages', null=True)
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='messages', null=True,)
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        if self.group:
+            return f"From {self.sender} to group {self.group.name} at {self.timestamp}"
+        return f"From {self.sender} to {self.receiver} at {self.timestamp}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.group and self.receiver:
+            raise ValidationError("A message cannot have both a receiver and a group.")
+        if not self.group and not self.receiver:
+            raise ValidationError("A message must have either a receiver or a group.")
