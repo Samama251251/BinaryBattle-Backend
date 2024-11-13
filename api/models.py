@@ -66,12 +66,9 @@ class Group(models.Model):
         return self.name
 class Message(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
-    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages', null=True)
     group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='messages', null=True,)
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
-    is_read = models.BooleanField(default=False)
-
     class Meta:
         ordering = ['timestamp']
 
@@ -86,3 +83,22 @@ class Message(models.Model):
             raise ValidationError("A message cannot have both a receiver and a group.")
         if not self.group and not self.receiver:
             raise ValidationError("A message must have either a receiver or a group.")
+class MessageReadStatus(models.Model):
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name='read_status'
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='message_read_status'
+    )
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['message', 'user']),
+        ]
