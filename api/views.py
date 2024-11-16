@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
-from .models import Friendship, User
+from .models import Friendship, User,Group
 from .serializers import FriendshipSerializer
 # Create your views here.
 from .models import Friendship
@@ -66,14 +66,25 @@ class FriendshipAPIView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class UserCreateAPIView(APIView):
     def post(self, request):
-        try:
-            serializer = UserSerializer(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({
-                'error': 'Unexpected error occurred',
-                'detail': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # try:
+        #     serializer = UserSerializer(data=request.data)
+        #     if serializer.is_valid():
+        #         serializer.save()
+        #         return Response(serializer.data, status=status.HTTP_201_CREATED)
+        #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # except Exception as e:
+        #     return Response({
+        #         'error': 'Unexpected error occurred',
+        #         'detail': str(e)
+        #     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        print("user created")
+        return Response({"message":"User created successfully"},status=status.HTTP_201_CREATED)
+        
+class GroupChatAPIView(APIView):
+    def post(self,request):
+        group_name = request.data["group_name"]
+        print("group name is", group_name)
+        return Response({"message":"Group created successfully"},status=status.HTTP_201_CREATED)
+
+
+            

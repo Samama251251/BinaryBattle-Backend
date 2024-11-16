@@ -4,29 +4,39 @@ import json
 from .models import Message,User,Group,MessageReadStatus
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.room_name = self.scope['url_route']['kwargs']['room_name']
-        self.room_group_name = f'chat_{self.room_name}'
-        print("I am in the chat consumer")
-        # Join room group
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
-
-        await self.accept()
+        try:
+            self.room_name = self.scope['url_route']['kwargs']['room_name']
+            self.room_group_name = f'chat_{self.room_name}'
+            print(f"Connecting to room: {self.room_name}")
+            print(f"User: {self.scope.get('user', 'Anonymous')}")
+            
+            # Join room group
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            
+            await self.accept()
+            print(f"Successfully connected to {self.room_group_name}")
+            
+        except Exception as e:
+            print(f"Connection error: {str(e)}")
+            raise
 
     async def disconnect(self, close_code):
-        # Leave room group
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
-    # Receive message from WebSocket
-    # As of now the receive function take the message and save it to the database and then send it to the room group
+        print(f"Disconnecting with code: {close_code}")
+        try:
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
+            print("Successfully disconnected from group")
+        except Exception as e:
+            print(f"Disconnect error: {str(e)}")
     async def receive(self, text_data):        
         # Save the message to database
-        newmessage = await self.save_message(text_data)
-        print("new message is", newmessage)
+        #newmessage = await self.save_message(text_data)
+        print("new message is", text_data)
         # Send message to room group
         await self.channel_layer.group_send(
             self.room_group_name,
