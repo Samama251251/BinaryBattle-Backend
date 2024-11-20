@@ -4,7 +4,7 @@ from .models import Friendship, User,Message
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'name', 'email']
+        fields = ['username', 'name', 'email','score','rank']
 
 class FriendshipSerializer(serializers.ModelSerializer):
     sender_details = UserSerializer(source='sender', read_only=True)

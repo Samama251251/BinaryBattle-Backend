@@ -64,6 +64,70 @@ class FriendshipAPIView(APIView):
                 'error': 'Unexpected error occurred',
                 'detail': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    #This will be the api for getting all the friends of a specific user
+    def get(self,request):
+            try:
+                print("I am in the get of the friendship")
+                query_params = dict(request.query_params)
+                username = query_params.get('username', [None])[0]
+                if not username:
+                    return Response({"error": "Username parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Get the user object first
+                try:
+                    user = User.objects.get(username=username)
+                except User.DoesNotExist:
+                    return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+                
+                # Fix the filter syntax and get accepted friendships
+                friendships = Friendship.objects.filter(
+                    # Get friendships where user is the sender and status is accepted
+                    (Q(sender=user)) & Q(status="accepted")
+                )  # Efficiently load the receiver user details
+                print(friendships)
+                print("I am printing the friendshipp")
+                # Create a list to store friend details
+                friend_details = []
+                for friendship in friendships:
+                    print("I am in the for loop")
+                    print(friendship.receiver.email)
+                    friend_details.append({
+                        
+                            'username': friendship.receiver.username,
+                            'isOnline': False,
+
+                            'email': friendship.receiver.email,
+                            'score': friendship.receiver.score,
+                            'rank': friendship.receiver.rank
+                        
+                    })
+                friendships_receiver = Friendship.objects.filter(
+                    # Get friendships where user is the sender and status is accepted
+                    (Q(receiver=user))
+                )  # Efficiently load the receiver user details
+                print(friendships)
+                print("I am printing the friendshipp")
+                # Create a list to store friend details
+                for friendship in friendships_receiver:
+                    print("I am in the for loop")
+                    print(friendship.sender.email)
+                    friend_details.append({
+                        
+                            'username': friendship.sender.username,
+                            'isOnline': True,
+                            'email': friendship.sender.email,
+                            'score': friendship.sender.score,
+                            'rank': friendship.sender.rank,
+                        
+                    })
+                
+                return Response(friend_details, status=status.HTTP_200_OK)
+            except Exception as e:
+                print(e)
+                return Response({
+                    "error": "Unexpected error occurred",
+                    "detail": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class UserCreateAPIView(APIView):
     def post(self, request):
         # try:
@@ -79,12 +143,40 @@ class UserCreateAPIView(APIView):
         #     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         print("user created")
         return Response({"message":"User created successfully"},status=status.HTTP_201_CREATED)
-        
+    def get(self,request):
+        try:
+            print("I was here")
+            query_params = dict(request.query_params)
+            # Convert QueryDict to dictionary
+            username = query_params.get('username', [None])[0]  # Handle case when username param is missing
+            if not username:
+                return Response({"error": "Username parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            print(username)
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            print("I came here")
+            serializer = UserSerializer(user)
+            return Response([serializer.data], status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({
+                "error": "Unexpected error occurred",
+                "detail": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class GroupChatAPIView(APIView):
     def post(self,request):
         group_name = request.data["group_name"]
         print("group name is", group_name)
         return Response({"message":"Group created successfully"},status=status.HTTP_201_CREATED)
+class TestAPIView(APIView):
+    def post(self,request):
+        data = request.data
+        print(data)
+        print("I am inside the testing")
+        return Response({"message": "Received"}, status=status.HTTP_200_OK)
 
-
-            
