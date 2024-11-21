@@ -67,34 +67,28 @@ class FriendshipAPIView(APIView):
     #This will be the api for getting all the friends of a specific user
     def get(self,request):
             try:
-                print("I am in the get of the friendship")
                 query_params = dict(request.query_params)
                 username = query_params.get('username', [None])[0]
                 if not username:
                     return Response({"error": "Username parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
-                
                 # Get the user object first
                 try:
                     user = User.objects.get(username=username)
                 except User.DoesNotExist:
                     return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-                
                 # Fix the filter syntax and get accepted friendships
                 friendships = Friendship.objects.filter(
                     # Get friendships where user is the sender and status is accepted
                     (Q(sender=user)) & Q(status="accepted")
                 )  # Efficiently load the receiver user details
-                print(friendships)
-                print("I am printing the friendshipp")
                 # Create a list to store friend details
                 friend_details = []
                 for friendship in friendships:
-                    print("I am in the for loop")
-                    print(friendship.receiver.email)
+
                     friend_details.append({
                         
                             'username': friendship.receiver.username,
-                            'isOnline': False,
+                            'isOnline': friendship.receiver.isOnline,
 
                             'email': friendship.receiver.email,
                             'score': friendship.receiver.score,
@@ -105,12 +99,8 @@ class FriendshipAPIView(APIView):
                     # Get friendships where user is the sender and status is accepted
                     (Q(receiver=user))
                 )  # Efficiently load the receiver user details
-                print(friendships)
-                print("I am printing the friendshipp")
                 # Create a list to store friend details
                 for friendship in friendships_receiver:
-                    print("I am in the for loop")
-                    print(friendship.sender.email)
                     friend_details.append({
                         
                             'username': friendship.sender.username,

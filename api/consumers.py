@@ -5,20 +5,22 @@ from .models import Message,User,Group,MessageReadStatus
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         try:
+            # Self.scope is like the request body of the http request. it contains the necessary information about the request
+            print("scope is", self.scope)
+            # whenever a socker is connection is established between the client and server a unique channel name is given to that web socket conncetion so therfore 
+            # channel name is basically a unique idenetity given to each web socet connetion
+            print("channel name is", self.channel_name)
             self.room_name = self.scope['url_route']['kwargs']['room_name']
             self.room_group_name = f'chat_{self.room_name}'
             print(f"Connecting to room: {self.room_name}")
             print(f"User: {self.scope.get('user', 'Anonymous')}")
-            
-            # Join room group
+            # Channel layer is the backend system managing all the connections . In this it is the reddis. It is creating a group and adding a client to the group
             await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
             )
-            
             await self.accept()
             print(f"Successfully connected to {self.room_group_name}")
-            
         except Exception as e:
             print(f"Connection error: {str(e)}")
             raise
@@ -77,3 +79,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'message': message
         }))
+class onlineConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        try:
+            # Accept the WebSocket connection
+            await self.changeOnlineStatus("jane_smith","connect")
+            await self.accept()
+            username = self.scope['url_route']['kwargs']['username']
+        except Exception as e:
+            print(f"Error in connect: {str(e)}")
+            await self.close()
+            
+    async def disconnect(self,close_code):
+        try:
+            await self.changeOnlineStatus("jane_smith","disconnect")
+        except Exception as e:
+            print(f"Error in disconnect: {str(e)}")
+    @database_sync_to_async
+    def changeOnlineStatus(self, username,mode):
+        try:
+            user = User.objects.get(username=username)
+            if(mode=="connect"):
+                user.isOnline = True
+            else:
+                user.isOnline = False
+            user.save()
+        except User.DoesNotExist:
+            print(f"User {username} not found")
+            return None
+        except Exception as e:
+            print(f"Error changing online status: {str(e)}")
+            return None
