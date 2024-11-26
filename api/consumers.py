@@ -83,16 +83,19 @@ class onlineConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         try:
             # Accept the WebSocket connection
-            await self.changeOnlineStatus("jane_smith","connect")
-            await self.accept()
             username = self.scope['url_route']['kwargs']['username']
+            print("I came inside the onlineConsumer")
+            await self.changeOnlineStatus(username,"connect")
+            await self.accept()
+
         except Exception as e:
             print(f"Error in connect: {str(e)}")
             await self.close()
             
     async def disconnect(self,close_code):
         try:
-            await self.changeOnlineStatus("jane_smith","disconnect")
+            username = self.scope['url_route']['kwargs']['username']       
+            await self.changeOnlineStatus(username,"disconnect")
         except Exception as e:
             print(f"Error in disconnect: {str(e)}")
     @database_sync_to_async

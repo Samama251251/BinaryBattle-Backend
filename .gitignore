@@ -8,3 +8,5 @@ __pycache__/
 
 # Poetry
 poetry.lock
+populate_users.py
+create_friendships.py

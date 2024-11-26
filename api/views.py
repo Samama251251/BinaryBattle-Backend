@@ -146,7 +146,8 @@ class UserCreateAPIView(APIView):
             try:
                 user = User.objects.get(username=username)
             except User.DoesNotExist:
-                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+                print("this will be returne")
+                return Response([], status=status.HTTP_200_OK)
             
             print("I came here")
             serializer = UserSerializer(user)
