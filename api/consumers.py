@@ -1,4 +1,4 @@
-from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer,AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async  # Add this import
 import json
 from .models import Message,User,Group,MessageReadStatus
@@ -113,3 +113,47 @@ class onlineConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"Error changing online status: {str(e)}")
             return None
+
+class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.challenge_id = self.scope['url_route']['kwargs']['challenge_id']
+        self.room_group_name = f'challenge_lobby_{self.challenge_id}'
+        print("I am here with this challenge id to establish the connection", self.challenge_id)
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.accept()
+
+    async def receive_json(self, content):
+        message_type = content.get('type')
+        if message_type == 'ready_status':
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'ready_status_update',
+                    'username': content['username'],
+                    'isReady': content['isReady']
+                }
+            )
+        elif message_type == 'challenge_start':
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'challenge_started',
+                    'startTime': content['startTime']
+                }
+            )
+
+    async def ready_status_update(self, event):
+        await self.send_json({
+            'type': 'ready_status_update',
+            'username': event['username'],
+            'isReady': event['isReady']
+        })
+
+    async def challenge_started(self, event):
+        await self.send_json({
+            'type': 'challenge_started',
+            'startTime': event['startTime']
+        })

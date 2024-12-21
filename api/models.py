@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 class User(models.Model):
     username = models.CharField(max_length=50, primary_key=True)
@@ -7,7 +8,7 @@ class User(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     score = models.SmallIntegerField(default=0)
     rank = models.TextField()
-    isOnline = models.BooleanField(default=False)
+    isOnline = models.BooleanField(default=False,null=True)
 
     def __str__(self):
         return f"{self.username}"
@@ -103,3 +104,27 @@ class MessageReadStatus(models.Model):
             models.Index(fields=['user', 'is_read']),
             models.Index(fields=['message', 'user']),
         ]
+
+class Challenge(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('active', 'Active'),
+        ('completed', 'Completed')
+    ]
+
+    title = models.CharField(max_length=200)
+    problem_id = models.CharField(max_length=100)
+    duration = models.IntegerField()  # in minutes  
+    created_by = models.ForeignKey('User', on_delete=models.CASCADE, related_name='created_challenges')
+    created_at = models.DateTimeField(default=timezone.now)
+    start_time = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    participants = models.ManyToManyField('User', through='ChallengeParticipant', related_name='participated_challenges')
+   
+class ChallengeParticipant(models.Model):
+    user = models.ForeignKey('User', on_delete=models.CASCADE)
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE)
+    joined_at = models.DateTimeField(default=timezone.now)
+    submission = models.TextField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    is_ready = models.BooleanField(default=False)

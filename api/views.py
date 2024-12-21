@@ -1,10 +1,9 @@
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
-from .models import Friendship, User,Group
-from .serializers import FriendshipSerializer
+from .models import Friendship, User,Group, Challenge, ChallengeParticipant
+from .serializers import FriendshipSerializer, UserSerializer, ChallengeSerializer, ChallengeParticipantSerializer, ChallengeDetailSerializer
 # Create your views here.
 from .models import Friendship
 from .serializers import UserSerializer 
@@ -38,16 +37,24 @@ class FriendshipAPIView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             #Making sure that Request is not send already
             existing_friendship = Friendship.objects.filter(
-                Q(sender=sender, receiver=receiver) |
-                Q(sender=receiver, receiver=sender)
+                Q(sender=sender, receiver=receiver,status="accepted") |
+                Q(sender=receiver, receiver=sender,status = "accepted")
             ).first()
 
             if existing_friendship:
                 return Response({
-                    'error': 'Friendship already exists',
-                    'status': existing_friendship.status,
-                    'friendship_id': existing_friendship.id
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    'message': 'Friendship already exists',
+                }, status=status.HTTP_200_OK)
+            already_sent = Friendship.objects.filter(
+                Q(sender=sender, receiver=receiver,status="pending") |
+                Q(sender=receiver, receiver=sender,status = "pending")
+            ).first()
+            if already_sent:
+                return Response({
+                    "success":False,
+                    "data": None,
+                    "message":"Friend Request Already Sent"
+                },status=status.HTTP_409_CONFLICT)
            # Now after all the checkings we will create friendship 
             try:
                 friendship = Friendship.objects.create(sender = sender,receiver = receiver,status="pending")
@@ -118,21 +125,61 @@ class FriendshipAPIView(APIView):
                     "error": "Unexpected error occurred",
                     "detail": str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+
+# This will be the api for getting all the friend requests which a user has received
+class FriendRequestAPIView(APIView):
+    def get(self,request):
+        query_params = dict(request.query_params)
+        userEmail = query_params.get('email', [None])[0]
+        if not userEmail:
+            return Response({"error": "User email parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(email=userEmail)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        friend_requests = Friendship.objects.filter(receiver=user, status="pending")
+        serializer = FriendshipSerializer(friend_requests, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def post(self,request):
+        try:
+            action = request.data.get('action')
+            receiver_email = request.data.get('receiverEmail')
+            sender_email = request.data.get('senderEmail')
+
+            if not all([action, receiver_email, sender_email]):
+                return Response({
+                    "error": "Missing required parameters"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                receiver = User.objects.get(email=receiver_email)
+                sender = User.objects.get(email=sender_email)
+            except User.DoesNotExist:
+                return Response({
+                    "error": "User not found"
+                }, status=status.HTTP_404_NOT_FOUND)
+            friendship = Friendship.objects.filter(sender=sender,receiver=receiver,status='pending').first()
+            if action == 'accept':
+                friendship.status = 'accepted'
+            elif action == 'reject':
+                friendship.status = 'rejected'
+            else:
+                return Response({
+                    "error": "Invalid action"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            friendship.save()
+            return Response({
+                "message": f"Friend request {action}ed successfully"
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                "error": "Unexpected error occurred",
+                "detail": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class UserCreateAPIView(APIView):
-    def post(self, request):
-        # try:
-        #     serializer = UserSerializer(data=request.data)
-        #     if serializer.is_valid():
-        #         serializer.save()
-        #         return Response(serializer.data, status=status.HTTP_201_CREATED)
-        #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        # except Exception as e:
-        #     return Response({
-        #         'error': 'Unexpected error occurred',
-        #         'detail': str(e)
-        #     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        print("user created")
-        return Response({"message":"User created successfully"},status=status.HTTP_201_CREATED)
+
+    # This api will return the user deatils based on the username. It will be used in the search bar to search for new friends
     def get(self,request):
         try:
             print("I was here")
@@ -170,4 +217,109 @@ class TestAPIView(APIView):
         print(data)
         print("I am inside the testing")
         return Response({"message": "Received"}, status=status.HTTP_200_OK)
+
+class ChallengeAPIView(APIView):
+    def post(self, request):
+        try:
+            # Create new challenge
+            data = {
+                'title': request.data.get('title'),
+                'problem_id': request.data.get('problem'),
+                'duration': request.data.get('duration'),
+                'created_by': User.objects.get(email=request.data.get('createdBy')),
+                'status': 'pending',
+            }
+            print("I cam here with this data", data)
+            challenge = Challenge.objects.create(**data)
+            serializer = ChallengeSerializer(challenge)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'error': 'Failed to create challenge', 
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    def get(self, request, challenge_id=None):
+        try:
+            if challenge_id:
+                # Fetch specific challenge with details
+                print("I am here with this challenge id", challenge_id)
+                challenge = Challenge.objects.select_related('created_by').get(id=challenge_id)
+                print("I am here with this challenge", challenge)
+                serializer = ChallengeDetailSerializer(challenge)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                # Return all active challenges
+                challenges = Challenge.objects.filter(status='active').select_related('created_by')
+                serializer = ChallengeSerializer(challenges, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Challenge.DoesNotExist:
+            print(f"Challenge not found with ID: {challenge_id}")
+            return Response(
+                {'error': f'Challenge with ID {challenge_id} not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f"Error fetching challenge: {str(e)}")
+            return Response({
+                'error': 'Failed to fetch challenge',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ChallengeParticipationAPIView(APIView):
+    def post(self, request):
+        try:
+            challenge_id = request.data.get('challengeId')
+            user_email = request.data.get('userEmail')
+            
+            challenge = Challenge.objects.get(id=challenge_id)
+            user = User.objects.get(email=user_email)
+            
+            # Check if user already joined
+            if ChallengeParticipant.objects.filter(challenge=challenge, user=user).exists():
+                return Response({'error': 'Already joined this challenge'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Join the challenge
+            ChallengeParticipant.objects.create(
+                challenge=challenge,
+                user=user
+            )
+            
+            return Response({'message': 'Successfully joined the challenge'}, status=status.HTTP_200_OK)
+            
+        except (Challenge.DoesNotExist, User.DoesNotExist):
+            return Response({'error': 'Challenge or User not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': 'Failed to join challenge',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ChallengeReadyAPIView(APIView):
+    def post(self, request, challenge_id):
+        try:
+            challenge = Challenge.objects.get(id=challenge_id)
+            user = User.objects.get(email=request.data.get('email'))
+            participant = ChallengeParticipant.objects.get(
+                challenge=challenge,
+                user=user
+            )
+            
+            participant.is_ready = request.data.get('isReady', False)
+            participant.save()
+            
+            return Response({
+                'message': 'Ready status updated successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except (Challenge.DoesNotExist, User.DoesNotExist, ChallengeParticipant.DoesNotExist):
+            return Response({
+                'error': 'Challenge or participant not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': 'Failed to update ready status',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
