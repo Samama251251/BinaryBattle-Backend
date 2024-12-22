@@ -91,7 +91,7 @@ class onlineConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"Error in connect: {str(e)}")
             await self.close()
-            
+                 
     async def disconnect(self,close_code):
         try:
             username = self.scope['url_route']['kwargs']['username']       
@@ -116,14 +116,43 @@ class onlineConsumer(AsyncWebsocketConsumer):
 
 class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
+        print("I came here to connect")
         self.challenge_id = self.scope['url_route']['kwargs']['challenge_id']
         self.room_group_name = f'challenge_lobby_{self.challenge_id}'
-        print("I am here with this challenge id to establish the connection", self.challenge_id)
+        self.username = self.scope['url_route']['kwargs']['username']
+        
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
         await self.accept()
+        
+        # Notify others that a new user has joined
+        print("I came here to notify the others")
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'user_join_leave',
+                'username': self.username,
+                'action': 'joined'
+            }
+        )
+
+    async def disconnect(self, close_code):
+        # Notify others that a user has left
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'user_join_leave',
+                'username': self.username,
+                'action': 'left'
+            }
+        )
+        
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
 
     async def receive_json(self, content):
         message_type = content.get('type')
@@ -156,4 +185,11 @@ class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json({
             'type': 'challenge_started',
             'startTime': event['startTime']
+        })
+
+    async def user_join_leave(self, event):
+        await self.send_json({
+            'type': 'user_join_leave',
+            'username': event['username'],
+            'action': event['action']
         })
