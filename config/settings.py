@@ -149,8 +149,8 @@ CHANNEL_LAYERS = {
         'CONFIG': {
             'hosts': [
                 {
-                    'address': os.getenv("REDIS_HOST"),
-                    'password': os.getenv("REDIS_PASSWORD"),
+                    'address': 'rediss://witty-peacock-53120.upstash.io:6379',
+                    'password': 'Ac-AAAIncDEyM2M3NzY5NDE5MDE0YjVlYWZlNTU4NmZlZGE4Yjc5NXAxNTMxMjA',
                 }
             ],
         },

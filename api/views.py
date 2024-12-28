@@ -4,6 +4,7 @@ from rest_framework import status
 from django.db.models import Q
 from .models import Friendship, User,Group, Challenge, ChallengeParticipant
 from .serializers import FriendshipSerializer, UserSerializer, ChallengeSerializer, ChallengeParticipantSerializer, ChallengeDetailSerializer
+from django.utils import timezone
 # Create your views here.
 from .models import Friendship
 from .serializers import UserSerializer 
@@ -285,7 +286,7 @@ class ChallengeParticipationAPIView(APIView):
                 challenge=challenge,
                 user=user
             )
-            
+             
             return Response({'message': 'Successfully joined the challenge'}, status=status.HTTP_200_OK)
             
         except (Challenge.DoesNotExist, User.DoesNotExist):
@@ -309,6 +310,7 @@ class ChallengeReadyAPIView(APIView):
                     user=user
                 )
                 print("I am here with this participant", participant)
+                print("I am here with this is ready", request.data.get('isReady', False))
             participant.is_ready = request.data.get('isReady', False)
             participant.save()
             
@@ -325,4 +327,35 @@ class ChallengeReadyAPIView(APIView):
                 'error': 'Failed to update ready status',
                 'detail': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+class ChallengeStartAPIView(APIView):
+    def post(self, request, challenge_id):
+        try:
+            challenge = Challenge.objects.get(id=challenge_id)
+            
+            # Update challenge status to 'active' and set start time
+            challenge.status = 'active'
+            challenge.start_time = timezone.now()
+            challenge.save()
+            
+            # Get all participants and update their start times
+            participants = ChallengeParticipant.objects.filter(challenge=challenge)
+            for participant in participants:
+                participant.start_time = challenge.start_time
+                participant.save()
+            
+            return Response({
+                "message": "Challenge started successfully",
+                "start_time": challenge.start_time
+            }, status=status.HTTP_200_OK)
+            
+        except Challenge.DoesNotExist:
+            return Response({
+                "error": "Challenge not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                "error": "Failed to start challenge",
+                "detail": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 

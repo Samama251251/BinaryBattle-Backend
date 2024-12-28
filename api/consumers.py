@@ -194,6 +194,7 @@ class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
                 }
             )
         elif message_type == 'challenge_start':
+            
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -210,10 +211,12 @@ class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def challenge_started(self, event):
-        await self.send_json({
-            'type': 'challenge_started',
-            'startTime': event['startTime']
-        })
+        # Skip sending to the channel that initiated the challenge start
+        if event.get('skip_channel') != self.channel_name:
+            await self.send_json({
+                'type': 'challenge_started', 
+                'startTime': event['startTime']
+            })
 
     async def user_join_leave(self, event):
         await self.send_json({
@@ -238,3 +241,101 @@ class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
                 ).delete()
         except Exception as e:
             print(f"Error updating challenge participants: {str(e)}")
+
+class ChallengeArenaConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        try:
+            # Get challenge ID and user email from the connection
+            self.challenge_id = self.scope['url_route']['kwargs']['challenge_id']
+            self.username = self.scope['url_route']['kwargs']['username']
+            self.room_group_name = f'challenge_arena_{self.challenge_id}'
+
+            # Add to challenge group
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            await self.accept()
+            
+            print(f"User {self.username} connected to challenge {self.challenge_id} arena")
+        except Exception as e:
+            print(f"Connection error: {str(e)}")
+            await self.close()
+
+    async def disconnect(self, close_code):
+        try:
+            # Remove from challenge group
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
+            print(f"User {self.username} disconnected from challenge {self.challenge_id} arena")
+        except Exception as e:
+            print(f"Disconnect error: {str(e)}")
+
+    async def receive_json(self, content):
+        try:
+            message_type = content.get('type')
+            data = content.get('data', {})
+            print("i came here")
+            if message_type == 'new_submission':
+                # Broadcast submission status to all participants
+                print("I am here for the new submission")
+
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'submission_update',
+                        'username': data['username'],
+                        'challenge_id': data['challengeId'],
+                        'status': 'processing'
+                    }
+                )
+                print("I have succesfull sent the data")
+            
+            elif message_type == 'submission_completed':
+                # Broadcast completion status and score
+                print("I am here for the submission completed")
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'submission_update',
+                        'username': data['username'],
+                        'challenge_id': data['challengeId'],
+                        'status': "submitted",
+                    }
+                )
+                print("I have succesfull sent the data")
+                # Check if this submission makes the user a winner
+                if data['status'] == 'completed':
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            'type': 'challenge_winner',
+                            'username': data['username'],
+                            'challenge_id': data['challengeId']
+                        }
+                    )
+
+        except Exception as e:
+            print(f"Error processing message: {str(e)}")
+
+    async def submission_update(self, event):
+        # Send submission update to WebSocket
+        print("I am in the function 2 of the newSubmission")
+        await self.send_json({
+            'type': 'submission_update',
+            'challengeId': event['challenge_id'],
+            'username': event['username'],
+            'status': "submitted",
+            # 'score': event.get('score')
+        })
+        print("Succesfuuly Done the websoccket")
+
+    async def challenge_winner(self, event):
+        # Send winner notification to WebSocket
+        await self.send_json({
+            'type': 'challenge_winner',
+            'challengeId': event['challenge_id'],
+            'username': event['username']
+        })

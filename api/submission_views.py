@@ -9,83 +9,111 @@ class SubmissionAPIView(APIView):
     def post(self, request):
         try:
             load_dotenv()
-            print("I came here")
-            # Extract data from request
-            code = request.data.get('code')
-            language_id = request.data.get('language')
-            challenge_id = request.data.get('challengeId')
-            user_email = request.data.get('userEmail')
-            print(code, language_id, challenge_id, user_email)
-
-            if not all([code, language_id, challenge_id, user_email]):
+            
+            # Extract and validate required fields
+            required_fields = {
+                'code': request.data.get('code'),
+                'language': request.data.get('language'),
+                'challengeId': request.data.get('challengeId'),
+                'userEmail': request.data.get('userEmail'),
+                'testCases': request.data.get('testCases')
+            }
+            
+            # Check for missing fields and return specific error
+            missing_fields = [field for field, value in required_fields.items() if not value]
+            if missing_fields:
                 return Response({
-                    'error': 'Missing required fields'
+                    'error': 'Missing required fields',
+                    'missing_fields': missing_fields
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Get user and challenge
-            user = User.objects.get(email=user_email)
-            challenge = Challenge.objects.get(id=challenge_id)
+            # Get user and challenge with specific error handling
+            try:
+                user = User.objects.get(email=required_fields['userEmail'])
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'User not found',
+                    'detail': f"No user found with email {required_fields['userEmail']}"
+                }, status=status.HTTP_404_NOT_FOUND)
 
-            # Extract test cases from request
+            try:
+                challenge = Challenge.objects.get(id=required_fields['challengeId'])
+            except Challenge.DoesNotExist:
+                return Response({
+                    'error': 'Challenge not found',
+                    'detail': f"No challenge found with ID {required_fields['challengeId']}"
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Validate test cases
             test_cases = request.data.get('testCases', [])
             if not test_cases:
                 return Response({
-                    'error': 'Test cases are required'
+                    'error': 'Test cases are required',
+                    'detail': 'At least one test case must be provided'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # For now, let's test with the first test case
+            # Validate test case format
             first_test = test_cases[0]
-            print(first_test['input'])
-            print("I am here after first_test['input']")
-            print(first_test['output'])
-            print("I am here after first_test['output']")
-            print(code)
-            judge0_data = {
-                'source_code': code,
-                'language_id': 71,  # Python
-                'stdin': first_test['input'],  # Use the input from test case
-                'expected_output': first_test['output']  # Use the expected output from test case
-            }
-            print(judge0_data)
+            if 'input' not in first_test or 'output' not in first_test:
+                return Response({
+                    'error': 'Invalid test case format',
+                    'detail': 'Each test case must contain input and output fields'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Send to Judge0
-            judge0_response = requests.post(
-                f'{os.getenv("JUDGE0_API_URL")}/submissions?base64_encoded=false&wait=false',
-                json=judge0_data,
-                headers={
-                    'X-RapidAPI-Host': os.getenv('JUDGE0_API_HOST'),
-                    'X-RapidAPI-Key': os.getenv('JUDGE0_API_KEY')
-                }
-            )
-            print(f"Response Status Code: {judge0_response.status_code}")
-            if judge0_response.status_code == 200:
-                print("Response JSON:", judge0_response.json())
-            else:
-                print("Error Response:", judge0_response.json()) 
-            print("Here is the judge0_response")
-            print(judge0_response)  
-            print("After judge0_response")
-            print("I came after judge0_response")
+            # Prepare Judge0 submission
+            judge0_data = {
+                'source_code': required_fields['code'],
+                'language_id': 71,  # Python
+                'stdin': first_test['input'],
+                'expected_output': first_test['output']
+            }
+
+            # Send to Judge0 with error handling
+            print("I am sending to judge0 with this data", judge0_data)
+            try:
+                judge0_response = requests.post(
+                    f'{os.getenv("JUDGE0_API_URL")}/submissions?base64_encoded=false&wait=false',
+                    json=judge0_data,
+                    headers={
+                        'X-RapidAPI-Host': os.getenv('JUDGE0_API_HOST'),
+                        'X-RapidAPI-Key': os.getenv('JUDGE0_API_KEY')
+                    }
+                )
+            except requests.exceptions.RequestException as e:
+                return Response({
+                    'error': 'Judge0 API connection error',
+                    'detail': str(e)
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
             if judge0_response.status_code != 201:
-                print("I came after judge0_response error")
-                raise Exception('Failed to create Judge0 submission')
+                return Response({
+                    'error': 'Judge0 submission failed',
+                    'detail': judge0_response.json(),
+                    'status_code': judge0_response.status_code
+                }, status=status.HTTP_502_BAD_GATEWAY)
 
             token = judge0_response.json().get('token')
-            print("i am before try ")
+            if not token:
+                return Response({
+                    'error': 'Invalid Judge0 response',
+                    'detail': 'No token received from Judge0'
+                }, status=status.HTTP_502_BAD_GATEWAY)
 
-            # Save submission to database
+            # Save submission to database with error handling
             try:
                 submission = Submission.objects.create(
                     user=user,
                     challenge=challenge,
-                    code=code,
-                    language=language_id,
+                    code=required_fields['code'],
+                    language=required_fields['language'],
                     judge0_token=token
                 )
-                print("I came after submission")
             except Exception as e:
-                print("I came after submission error")
-                print(e)
+                return Response({
+                    'error': 'Database error',
+                    'detail': f'Failed to save submission: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
             return Response({
                 'token': token,
                 'submissionId': submission.id
@@ -93,8 +121,9 @@ class SubmissionAPIView(APIView):
 
         except Exception as e:
             return Response({
-                'error': 'Failed to process submission',
-                'detail': str(e)
+                'error': 'Unexpected error',
+                'detail': str(e),
+                'type': type(e).__name__
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def get(self, request):
