@@ -5,7 +5,6 @@ import requests
 import os
 from dotenv import load_dotenv
 from .models import User, Challenge, Submission
-
 class SubmissionAPIView(APIView):
     def post(self, request):
         try:

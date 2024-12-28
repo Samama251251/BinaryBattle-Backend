@@ -2,25 +2,27 @@ from channels.generic.websocket import AsyncWebsocketConsumer,AsyncJsonWebsocket
 from channels.db import database_sync_to_async  # Add this import
 import json
 from .models import Message,User,Group,MessageReadStatus
+# Self.scope is like the request body of the http request. it contains the necessary information about the request
+# whenever a socker is connection is established between the client and server a unique channel name is given to that web socket conncetion so therfore 
+# channel name is basically a unique idenetity given to each web socet connetion
+# Channel layer is the backend system managing all the connections . In this it is the reddis. It is creating a group and adding a client to the group
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         try:
-            # Self.scope is like the request body of the http request. it contains the necessary information about the request
-            print("scope is", self.scope)
-            # whenever a socker is connection is established between the client and server a unique channel name is given to that web socket conncetion so therfore 
-            # channel name is basically a unique idenetity given to each web socet connetion
-            print("channel name is", self.channel_name)
-            self.room_name = self.scope['url_route']['kwargs']['room_name']
-            self.room_group_name = f'chat_{self.room_name}'
-            print(f"Connecting to room: {self.room_name}")
-            print(f"User: {self.scope.get('user', 'Anonymous')}")
-            # Channel layer is the backend system managing all the connections . In this it is the reddis. It is creating a group and adding a client to the group
+            # Get both users' usernames from the URL
+            print("I came here to connect")
+            self.room_id = self.scope['url_route']['kwargs']['room_id']
+            
+        
+            self.room_name = f"chat_{self.room_id}"
+            self.room_group_name = self.room_name
+            
             await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
             )
             await self.accept()
-            print(f"Successfully connected to {self.room_group_name}")
+            print(f"Successfully connected to chat between {self.user} and {self.other_user}")
         except Exception as e:
             print(f"Connection error: {str(e)}")
             raise
@@ -35,50 +37,74 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print("Successfully disconnected from group")
         except Exception as e:
             print(f"Disconnect error: {str(e)}")
-    async def receive(self, text_data):        
-        # Save the message to database
-        #newmessage = await self.save_message(text_data)
-        print("new message is", text_data)
-        # Send message to room group
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'chat_message',
-                'message': text_data
-            }
-        )
+    async def receive(self, text_data):
+        try:
+            print("I came here to receive")
+            data = json.loads(text_data)
+            print("data is",data)
+            message_content = data['text']
+            print("printign the message content",message_content)
+            # Save message to database
+            message = await self.save_message(data)
+            
+            # Check if other user is online
+            is_online = await self.check_user_online(self.other_user)
+            
+            if is_online:
+                # Send message to room group if user is online
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'chat_message',
+                        'message': message_content,
+                        'sender': self.user,
+                        'timestamp': str(message.timestamp)
+                    }
+                )
+            # If user is offline, message is already saved in DB with unread status
+            
+        except Exception as e:
+            print(f"Error in receive: {str(e)}")
+
     @database_sync_to_async
-    # This function save the message to the database and make the message read status for all the members of the group and then return the message 
-    def save_message(self, message_content):
+    def save_message(self, data):
+        print("I came here to save the message")
+        print("data is",data)
+        sender = User.objects.get(username=data["source"])
+        receiver = User.objects.get(username=data["to"])
+        
         # Create the message
         message = Message.objects.create(
-            content=message_content,
-            sender=User.objects.get(username="charlie"),  # This should be dynamic
-            group=Group.objects.get(name="DevOps Team")  # This should be dynamic
+            content=data['text'],
+            sender=sender,
+            receiver=receiver  # Add receiver field to Message model
         )
         
-        # Get all group members
-        print("I came here")
-        group = message.group
-        group_members = group.members.all()
+        # Create MessageReadStatus for receiver
+        MessageReadStatus.objects.create(
+            message=message,
+            user=receiver,
+            is_read=False
+        )
         
-        # Create MessageReadStatus for each member
-        for member in group_members:
-            print("member is", member.username)
-            MessageReadStatus.objects.create(
-                message=message,
-                user=member,
-                is_read=member == message.sender  # True for sender, False for others
-            )
         return message
-    # Receive message from room group
-    async def chat_message(self, event):
-        message = event['message']
 
+    @database_sync_to_async
+    def check_user_online(self, username):
+        try:
+            user = User.objects.get(username=username)
+            return user.isOnline
+        except User.DoesNotExist:
+            return False
+
+    async def chat_message(self, event):
         # Send message to WebSocket
         await self.send(text_data=json.dumps({
-            'message': message
+            'message': event['message'],
+            'sender': event['sender'],
+            'timestamp': event['timestamp']
         }))
+
 class onlineConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         try:
