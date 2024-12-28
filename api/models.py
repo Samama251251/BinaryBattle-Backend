@@ -128,3 +128,19 @@ class ChallengeParticipant(models.Model):
     submission = models.TextField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     is_ready = models.BooleanField(default=False)
+class Submission(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('error', 'Error')
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE)
+    code = models.TextField()
+    language = models.CharField(max_length=50)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    judge0_token = models.CharField(max_length=255, null=True, blank=True)
+    result = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)

@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import FriendshipAPIView, UserCreateAPIView,GroupChatAPIView,TestAPIView,FriendRequestAPIView,ChallengeAPIView,ChallengeParticipationAPIView
-
+from .submission_views import SubmissionAPIView
 urlpatterns = [
     path('friendship', FriendshipAPIView.as_view(), name='friendship-api'),
     path('users', UserCreateAPIView.as_view(), name='user-create'),
@@ -10,4 +10,5 @@ urlpatterns = [
     path('challenges/create', ChallengeAPIView.as_view()),
     path('challenges/join', ChallengeParticipationAPIView.as_view()),
     path('challenges/<int:challenge_id>/', ChallengeAPIView.as_view(), name='challenge-detail'),
+    path('submissions', SubmissionAPIView.as_view(), name='submissions'),
 ]

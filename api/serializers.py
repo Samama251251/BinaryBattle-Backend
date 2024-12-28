@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Friendship, User,Message, Challenge, ChallengeParticipant
+from .models import Friendship, User,Message, Challenge, ChallengeParticipant,Submission
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -53,3 +53,8 @@ class ChallengeDetailSerializer(serializers.ModelSerializer):
                 'joinedAt': challenge_participant.joined_at
             })
         return participants
+
+class SubmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Submission
+        fields = ['id', 'user', 'challenge', 'code', 'language', 'status', 'result', 'created_at']
