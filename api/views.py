@@ -299,13 +299,16 @@ class ChallengeParticipationAPIView(APIView):
 class ChallengeReadyAPIView(APIView):
     def post(self, request, challenge_id):
         try:
+            print("I am here with this challenge id", challenge_id)
             challenge = Challenge.objects.get(id=challenge_id)
-            user = User.objects.get(email=request.data.get('email'))
-            participant = ChallengeParticipant.objects.get(
-                challenge=challenge,
-                user=user
-            )
-            
+            user = User.objects.get(username=request.data.get('username'))
+            if challenge and user:
+                print("I am here with this user", user)
+                participant = ChallengeParticipant.objects.get(
+                    challenge=challenge,
+                    user=user
+                )
+                print("I am here with this participant", participant)
             participant.is_ready = request.data.get('isReady', False)
             participant.save()
             

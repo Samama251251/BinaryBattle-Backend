@@ -1,7 +1,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer,AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async  # Add this import
 import json
-from .models import Message,User,Group,MessageReadStatus
+from .models import Message,User,Group,MessageReadStatus,ChallengeParticipant
 # Self.scope is like the request body of the http request. it contains the necessary information about the request
 # whenever a socker is connection is established between the client and server a unique channel name is given to that web socket conncetion so therfore 
 # channel name is basically a unique idenetity given to each web socet connetion
@@ -22,7 +22,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             await self.accept()
-            print(f"Successfully connected to chat between {self.user} and {self.other_user}")
+            print(f"Successfully connected to chat between {self.room_id}")
         except Exception as e:
             print(f"Connection error: {str(e)}")
             raise
@@ -48,16 +48,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = await self.save_message(data)
             
             # Check if other user is online
-            is_online = await self.check_user_online(self.other_user)
+            is_online = await self.check_user_online(data["to"])
             
-            if is_online:
+            if not is_online or is_online:
+                print("I am sending the message to the group")
                 # Send message to room group if user is online
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
                         'type': 'chat_message',
                         'message': message_content,
-                        'sender': self.user,
+                        'sender': data["source"],
                         'timestamp': str(message.timestamp)
                     }
                 )
@@ -146,15 +147,15 @@ class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
         self.challenge_id = self.scope['url_route']['kwargs']['challenge_id']
         self.room_group_name = f'challenge_lobby_{self.challenge_id}'
         self.username = self.scope['url_route']['kwargs']['username']
-        
+        print("username is",self.username)
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
         await self.accept()
         
-        # Notify others that a new user has joined
-        print("I came here to notify the others")
+        # Update challenge participants and notify others
+        await self.update_challenge_participants('joined')
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -165,7 +166,8 @@ class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
         )
 
     async def disconnect(self, close_code):
-        # Notify others that a user has left
+        # Update challenge participants and notify others
+        await self.update_challenge_participants('left')
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -219,3 +221,20 @@ class ChallengeLobbyConsumer(AsyncJsonWebsocketConsumer):
             'username': event['username'],
             'action': event['action']
         })
+
+    @database_sync_to_async
+    def update_challenge_participants(self, action):
+        try:
+            print("I came here to update the challenge participants")
+            if action == 'joined':
+                ChallengeParticipant.objects.get_or_create(
+                    challenge_id=self.challenge_id,
+                    user=User.objects.get(username=self.username)
+                )
+            elif action == 'left':
+                ChallengeParticipant.objects.filter(
+                    challenge_id=self.challenge_id,
+                    user__username=self.username
+                ).delete()
+        except Exception as e:
+            print(f"Error updating challenge participants: {str(e)}")
