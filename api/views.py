@@ -112,7 +112,7 @@ class FriendshipAPIView(APIView):
                     friend_details.append({
                         
                             'username': friendship.sender.username,
-                            'isOnline': True,
+                            'isOnline': friendship.sender.isOnline,
                             'email': friendship.sender.email,
                             'score': friendship.sender.score,
                             'rank': friendship.sender.rank,
