@@ -287,8 +287,8 @@ class ChallengeArenaConsumer(AsyncJsonWebsocketConsumer):
                     {
                         'type': 'submission_update',
                         'username': data['username'],
-                        'challenge_id': data['challengeId'],
-                        'status': 'processing'
+                        'challengeId': data['challengeId'],
+                        'skip_channel': self.channel_name
                     }
                 )
                 print("I have succesfull sent the data")
@@ -296,13 +296,15 @@ class ChallengeArenaConsumer(AsyncJsonWebsocketConsumer):
             elif message_type == 'submission_completed':
                 # Broadcast completion status and score
                 print("I am here for the submission completed")
+                print("data is",data)
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        'type': 'submission_update',
+                        'type': 'challenge_winner',
                         'username': data['username'],
-                        'challenge_id': data['challengeId'],
+                        'challengeId': data['challengeId'],
                         'status': "submitted",
+                        'skip_channel': self.channel_name
                     }
                 )
                 print("I have succesfull sent the data")
@@ -313,7 +315,7 @@ class ChallengeArenaConsumer(AsyncJsonWebsocketConsumer):
                         {
                             'type': 'challenge_winner',
                             'username': data['username'],
-                            'challenge_id': data['challengeId']
+                            'challengeId': data['challengeId']
                         }
                     )
 
@@ -321,21 +323,21 @@ class ChallengeArenaConsumer(AsyncJsonWebsocketConsumer):
             print(f"Error processing message: {str(e)}")
 
     async def submission_update(self, event):
-        # Send submission update to WebSocket
-        print("I am in the function 2 of the newSubmission")
-        await self.send_json({
-            'type': 'submission_update',
-            'challengeId': event['challenge_id'],
-            'username': event['username'],
-            'status': "submitted",
-            # 'score': event.get('score')
-        })
+        # Skip sending to the channel that initiated the submission
+        if event.get('skip_channel') != self.channel_name:
+            await self.send_json({
+                'type': 'submission_update',
+                'challengeId': event['challengeId'],
+                'username': event['username'],
+                'status': "submitted",
+            })
         print("Succesfuuly Done the websoccket")
 
     async def challenge_winner(self, event):
         # Send winner notification to WebSocket
-        await self.send_json({
-            'type': 'challenge_winner',
-            'challengeId': event['challenge_id'],
-            'username': event['username']
-        })
+        if event.get('skip_channel') != self.channel_name:
+            await self.send_json({
+                'type': 'challenge_winner',
+                'challengeId': event['challengeId'],
+                'username': event['username']
+            })

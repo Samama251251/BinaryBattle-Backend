@@ -105,7 +105,7 @@ class FriendshipAPIView(APIView):
                     })
                 friendships_receiver = Friendship.objects.filter(
                     # Get friendships where user is the sender and status is accepted
-                    (Q(receiver=user))
+                    (Q(receiver=user)) & Q(status="accepted")
                 )  # Efficiently load the receiver user details
                 # Create a list to store friend details
                 for friendship in friendships_receiver:
