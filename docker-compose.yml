@@ -3,9 +3,10 @@ version: '3.8'
 services:
   web:
     build: .
-    container_name: binarybattle-backend
+    container_name: binarybattle
     restart: always
     env_file:
       - .env
     ports:
       - "8000:8000"
+
