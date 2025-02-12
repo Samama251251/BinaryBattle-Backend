@@ -105,6 +105,21 @@ DATABASES = {
         'CONN_MAX_AGE': 0,  # Disable persistent connections
     }
 }
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'neondb',  # Database name
+#         'USER': 'neondb_owner',  # Your database username
+#         'PASSWORD': 'npg_Mkq2mrLR4ilV',  # Your password
+#         'HOST': 'ep-spring-frog-a87pyjjr-pooler.eastus2.azure.neon.tech',  # Remote PostgreSQL host
+#         'PORT': '5432',  # PostgreSQL default port
+#         'OPTIONS': {
+#             'sslmode': 'require',  # Required for secure connections
+#         },
+#         'CONN_MAX_AGE': 0,  # Disable persistent connections
+#     }
+# }
+
 
 
 # Password validation
@@ -149,8 +164,8 @@ CHANNEL_LAYERS = {
         'CONFIG': {
             'hosts': [
                 {
-                    'address': 'rediss://witty-peacock-53120.upstash.io:6379',
-                    'password': 'Ac-AAAIncDEyM2M3NzY5NDE5MDE0YjVlYWZlNTU4NmZlZGE4Yjc5NXAxNTMxMjA',
+                    'address': os.getenv("REDIS_HOST"),
+                    'password': os.getenv("REDIS_PASSWORD"),
                 }
             ],
         },
