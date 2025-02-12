@@ -213,11 +213,33 @@ class GroupChatAPIView(APIView):
         print("group name is", group_name)
         return Response({"message":"Group created successfully"},status=status.HTTP_201_CREATED)
 class TestAPIView(APIView):
-    def post(self,request):
+    def post(self, request):
         data = request.data
         print(data)
         print("I am inside the testing")
         return Response({"message": "Received"}, status=status.HTTP_200_OK)
+    
+    def get(self, request):
+        try:
+            # Get query parameters if any
+            params = dict(request.query_params)
+            
+            response_data = {
+                "message": "Test API is working!",
+                "method": "GET",
+                "params": params,
+                "status": "success"
+            }
+            
+            print("Test GET request received with params:", params)
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"Error in test GET: {str(e)}")
+            return Response({
+                "error": "Test GET request failed",
+                "detail": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ChallengeAPIView(APIView):
     def post(self, request):

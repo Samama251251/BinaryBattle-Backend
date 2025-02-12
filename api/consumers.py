@@ -341,3 +341,45 @@ class ChallengeArenaConsumer(AsyncJsonWebsocketConsumer):
                 'challengeId': event['challengeId'],
                 'username': event['username']
             })
+
+class TestConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        try:
+            print("Test WebSocket connected successfully!")
+            await self.accept()
+            # Send a welcome message
+            await self.send(text_data=json.dumps({
+                'message': 'Hello! WebSocket connection established successfully!',
+                'status': 'connected'
+            }))
+        except Exception as e:
+            print(f"Test connection error: {str(e)}")
+            await self.close()
+
+    async def disconnect(self, close_code):
+        print(f"Test WebSocket disconnected with code: {close_code}")
+
+    async def receive(self, text_data):
+        try:
+            # Try to parse as JSON first
+            try:
+                data = json.loads(text_data)
+                message = data.get('message', text_data)
+            except json.JSONDecodeError:
+                # If not JSON, use the raw text
+                message = text_data
+
+            print(f"Received message: {message}")
+            
+            # Echo back the message
+            await self.send(text_data=json.dumps({
+                'message': f'Server received: {message}',
+                'status': 'message_received'
+            }))
+        except Exception as e:
+            print(f"Error in test receive: {str(e)}")
+            # Send error message back to client
+            await self.send(text_data=json.dumps({
+                'message': f'Error processing message: {str(e)}',
+                'status': 'error'
+            }))
