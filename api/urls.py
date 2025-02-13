@@ -16,3 +16,4 @@ urlpatterns = [
     path('challenges/<int:challenge_id>/start', ChallengeStartAPIView.as_view(), name='challenge-start'),
     path('updateScore', UpdateScoreView.as_view(), name='update-score')
 ]
+# Web sockets are working on now
